@@ -13,7 +13,6 @@ public class LinkResponse {
         this.count = links.size();
     }
 
-    // Getters are required for Spring to convert this to JSON
     public String getOriginalUrl() { return originalUrl; }
     public int getCount() { return count; }
     public List<String> getLinks() { return links; }
