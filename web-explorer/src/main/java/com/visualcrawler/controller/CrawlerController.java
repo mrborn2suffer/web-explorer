@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*") // Allow frontend access
+@CrossOrigin(origins = "*") 
 public class CrawlerController {
 
     private final CrawlerService crawlerService;
@@ -19,7 +19,7 @@ public class CrawlerController {
         this.crawlerService = crawlerService;
     }
 
-    // ORIGINAL: Single Page Crawl
+    
     @PostMapping("/extract")
     public LinkResponse extract(@RequestParam String url) {
         try {
@@ -32,14 +32,14 @@ public class CrawlerController {
         }
     }
 
-    // NEW: Bulk Pagination Crawl
+   
     @PostMapping("/extract-range")
     public LinkResponse extractRange(
             @RequestParam String urlPattern,
             @RequestParam int start,
             @RequestParam int end) {
 
-        // Example: urlPattern="site.com/page/{}", start=1, end=5
+        
         List<String> allLinks = crawlerService.crawlPagination(urlPattern, start, end);
 
         return new LinkResponse("Bulk Crawl: Pages " + start + "-" + end, allLinks);
