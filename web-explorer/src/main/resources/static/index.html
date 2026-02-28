@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Java Visual Explorer Ultimate</title>
+    <style>
+        :root { --primary: #2563eb; --visit: #059669; --bulk: #7c3aed; --bg: #f8fafc; --card: #ffffff; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: #1e293b; max-width: 1000px; margin: 0 auto; padding: 2rem; }
+
+        h1 { text-align: center; color: var(--primary); margin-bottom: 2rem; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
+        .tab-btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; background: #e2e8f0; color: #64748b; }
+        .tab-btn.active { background: var(--primary); color: white; }
+        .tab-btn.active-bulk { background: var(--bulk); color: white; }
+
+        /* Search Boxes */
+        .search-box { display: flex; gap: 10px; background: var(--card); padding: 1.5rem; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 2rem; }
+        .bulk-inputs { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+        .bulk-row { display: flex; gap: 10px; }
+
+        input, select { padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; outline: none; }
+        input { flex: 1; }
+        input:focus, select:focus { border-color: var(--primary); }
+
+        .btn-main { background-color: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; cursor: pointer; transition: background 0.2s; white-space: nowrap;}
+        .btn-main:hover { opacity: 0.9; }
+        .btn-bulk { background-color: var(--bulk); }
+
+        /* Stats & Controls Bar */
+        .controls-bar {
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .stats { font-weight: 600; color: #64748b; }
+
+        /* List Styling */
+        ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+        li { background: var(--card); padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; transition: transform 0.2s; }
+        li:hover { transform: translateX(5px); border-color: var(--primary); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+
+        .link-url { font-family: monospace; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+        .actions { display: flex; gap: 8px; }
+        .btn-action { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; border: none; font-weight: 500; color: white; }
+        .btn-visit { background-color: var(--visit); }
+        .btn-explore { background-color: var(--primary); }
+
+        .loading { text-align: center; color: #64748b; display: none; margin-top: 20px;}
+        li.error { color: #ef4444; border-color: #fecaca; background-color: #fef2f2; justify-content: center; }
+    </style>
+</head>
+<body>
+
+<h1>Java Visual Crawler</h1>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('single')" id="tabSingle">Single URL</button>
+    <button class="tab-btn" onclick="switchTab('bulk')" id="tabBulk">Bulk Pagination</button>
+</div>
+
+<div id="singleMode" class="search-box">
+    <input type="text" id="urlInput" placeholder="Enter URL (e.g. https://site.com)">
+    <button class="btn-main" onclick="initiateCrawl()">Explore</button>
+</div>
+
+<div id="bulkMode" class="search-box" style="display:none;">
+    <div class="bulk-inputs">
+        <input type="text" id="patternInput" placeholder="Enter URL with multiple pages in it">
+        <div class="bulk-row">
+            <input type="number" id="startPage" placeholder="Start" value="1">
+            <input type="number" id="endPage" placeholder="End" value="5">
+            <button class="btn-main btn-bulk" onclick="initiateBulkCrawl()">Run Batch Job</button>
+        </div>
+    </div>
+</div>
+
+<div class="controls-bar">
+    <div class="stats">
+        <span>Found: <b id="count">0</b> links</span>
+    </div>
+    <div style="display:flex; align-items:center; gap: 10px;">
+        <label for="sortSelect" style="color:#64748b; font-weight:600;">Sort By:</label>
+        <select id="sortSelect" onchange="applySort()">
+            <option value="original">Default (As Found)</option>
+            <option value="asc">A-Z (Alphabetical)</option>
+            <option value="desc">Z-A (Reverse)</option>
+            <option value="smart">Smart Numeric (1, 2, 10)</option>
+        </select>
+    </div>
+</div>
+
+<div id="loading" class="loading">Working... <br><small>Crawling the web...</small></div>
+<ul id="linkList"></ul>
+
+<script>
+    // Store current links globally so we can sort them without re-fetching
+    let currentLinks = [];
+
+    function switchTab(mode) {
+        document.getElementById('singleMode').style.display = mode === 'single' ? 'flex' : 'none';
+        document.getElementById('bulkMode').style.display = mode === 'bulk' ? 'flex' : 'none';
+        document.getElementById('tabSingle').className = mode === 'single' ? 'tab-btn active' : 'tab-btn';
+        document.getElementById('tabBulk').className = mode === 'bulk' ? 'tab-btn active-bulk' : 'tab-btn';
+    }
+
+    async function initiateCrawl(urlOverride) {
+        const input = document.getElementById('urlInput');
+        const targetUrl = urlOverride || input.value;
+        input.value = targetUrl;
+        runFetch(`http://localhost:8080/api/extract?url=${encodeURIComponent(targetUrl)}`);
+    }
+
+    async function initiateBulkCrawl() {
+        const pattern = document.getElementById('patternInput').value;
+        const start = document.getElementById('startPage').value;
+        const end = document.getElementById('endPage').value;
+        runFetch(`http://localhost:8080/api/extract-range?urlPattern=${encodeURIComponent(pattern)}&start=${start}&end=${end}`);
+    }
+
+    async function runFetch(endpoint) {
+        const list = document.getElementById('linkList');
+        const loading = document.getElementById('loading');
+        const countSpan = document.getElementById('count');
+
+        list.innerHTML = '';
+        countSpan.innerText = '0';
+        loading.style.display = 'block';
+
+        try {
+            const response = await fetch(endpoint, { method: 'POST' });
+            const data = await response.json();
+
+            if (data.links.length === 1 && data.links[0].startsWith("Error:")) {
+                throw new Error(data.links[0]);
+            }
+
+            // SAVE DATA GLOBALLY
+            currentLinks = data.links;
+            countSpan.innerText = data.count;
+
+            // Render with current sort selection
+            applySort();
+
+        } catch (error) {
+            list.innerHTML = `<li class="error">${error.message || "Connection Failed"}</li>`;
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+
+    function applySort() {
+        const sortType = document.getElementById('sortSelect').value;
+        const list = document.getElementById('linkList');
+
+        // Create a copy to sort
+        let sortedLinks = [...currentLinks];
+
+        if (sortType === 'asc') {
+            sortedLinks.sort();
+        } else if (sortType === 'desc') {
+            sortedLinks.sort().reverse();
+        } else if (sortType === 'smart') {
+            // "Natural Sort" - handles numbers inside strings correctly
+            sortedLinks.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        }
+        // 'original' does nothing (uses the order from server)
+
+        renderList(sortedLinks);
+    }
+
+    function renderList(linksToRender) {
+        const list = document.getElementById('linkList');
+        list.innerHTML = '';
+
+        if (linksToRender.length > 1000) {
+            const blob = new Blob([linksToRender.join('\n')], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            list.innerHTML = `<li style="justify-content:center"><a href="${url}" download="sorted_links.txt" style="font-size:18px; font-weight:bold; color:var(--bulk); text-decoration:none;">📂 Download ${linksToRender.length} Sorted Links</a></li>`;
+            return;
+        }
+
+        linksToRender.forEach(link => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                    <span class="link-url" title="${link}">${link}</span>
+                    <div class="actions">
+                        <button class="btn-action btn-visit" onclick="window.open('${link}', '_blank')">Visit ↗</button>
+                        <button class="btn-action btn-explore" onclick="initiateCrawl('${link}')">Explore 🔍</button>
+                    </div>
+                `;
+            list.appendChild(li);
+        });
+    }
+</script>
+</body>
+</html>
